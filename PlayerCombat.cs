@@ -22,7 +22,6 @@ public class PlayerCombat : MonoBehaviour
     private bool ozelSaldiriYapiyorMu = false;
 
     [Header("Efektler")]
-    [Tooltip("Karakterin İçindeki Kilic_Izi objesini sürükle")]
     public GameObject kilicIzi;
 
     private CinemachineImpulseSource sarsintiKaynagi;
@@ -64,13 +63,9 @@ public class PlayerCombat : MonoBehaviour
 
     void Saldir()
     {
-        // 1. Karakterin kendi gövdesinin saldırma animasyonunu başlat
         if (anim != null) anim.SetTrigger("Saldir");
-
-        // 2. Kılıç İzi Efektini görünür yap ve kendi içindeki animasyonunu oynat
         StartCoroutine(KilicIziniGoster());
 
-        // 3. Fiziksel Hasar ve Ekran Sarsıntısı
         int vurulanSayisi = Physics2D.OverlapCircle(saldiriNoktasi.position, saldiriMenzili, dusmanFiltresi, vurulanDusmanlarHafizasi);
         if (vurulanSayisi > 0)
         {
@@ -81,26 +76,27 @@ public class PlayerCombat : MonoBehaviour
         for (int i = 0; i < vurulanSayisi; i++)
         {
             Collider2D dusman = vurulanDusmanlarHafizasi[i];
-
-            // YENİ EKLENEN HAYAT KURTARAN KİLİT: Eğer obje yoksa es geç, çökme!
             if (dusman == null) continue;
 
+            // 1. Eski Düşman Kontrolü
+            Enemy eskiDusman = dusman.GetComponent<Enemy>();
+            if (eskiDusman != null) eskiDusman.HasarAl(saldiriHasari, transform.position.x);
+
+            // 2. Kırmızı Slime Kontrolü
             AttackSlimeAI kirmiziSlime = dusman.GetComponent<AttackSlimeAI>();
-            if (kirmiziSlime != null)
-            {
-                kirmiziSlime.HasarAl(1, transform.position.x);
-            }
+            if (kirmiziSlime != null) kirmiziSlime.HasarAl(1, transform.position.x);
+
+            // 3. YENİ: YEŞİL GÖZCÜ SLIME KONTROLÜ
+            PatrolSlimeAI yesilSlime = dusman.GetComponent<PatrolSlimeAI>();
+            if (yesilSlime != null) yesilSlime.HasarAl(1, transform.position.x);
         }
     }
 
-    // ESKİ KOD: yield return new WaitForSeconds(0.2f);
-    // YENİ KOD:
     private IEnumerator KilicIziniGoster()
     {
         if (kilicIzi != null)
         {
             kilicIzi.SetActive(true);
-            // Zaman dursa bile gerçek hayattaki 0.2 saniyeyi sayar
             yield return new WaitForSecondsRealtime(0.25f);
             kilicIzi.SetActive(false);
         }
@@ -137,7 +133,27 @@ public class PlayerCombat : MonoBehaviour
             sarsintiKaynagi.GenerateImpulse();
             TimeManager.instance.HitstopTetikle(0.1f);
 
-            hedefDusman.GetComponent<Enemy>().HasarAl(saldiriHasari, transform.position.x);
+            // --- YENİ EKLENEN GÜVENLİ HASAR SİSTEMİ ---
+            Enemy eskiDusman = hedefDusman.GetComponent<Enemy>();
+            if (eskiDusman != null)
+            {
+                eskiDusman.HasarAl(saldiriHasari, transform.position.x);
+            }
+            else
+            {
+                AttackSlimeAI yeniSlime = hedefDusman.GetComponent<AttackSlimeAI>();
+                if (yeniSlime != null)
+                {
+                    yeniSlime.HasarAl(1, transform.position.x);
+                }
+                else
+                {
+                    PatrolSlimeAI yesilSlime = hedefDusman.GetComponent<PatrolSlimeAI>();
+                    if (yesilSlime != null) yesilSlime.HasarAl(1, transform.position.x);
+                }
+            }
+            // ------------------------------------------
+
             yapilanVurusSayisi++;
             aramaMerkezi = hedefDusman.transform.position;
 
@@ -158,6 +174,9 @@ public class PlayerCombat : MonoBehaviour
 
         foreach (Collider2D dusman in yakindakiDusmanlar)
         {
+            // YENİ EKLENEN ÇÖKME KALKANI: Obje silinmişse veya yoksa direkt es geç!
+            if (dusman == null || dusman.gameObject == null) continue;
+
             if (gormezdenGelinecekler.Contains(dusman)) continue;
             float mesafe = Vector2.Distance(merkez, dusman.transform.position);
             if (mesafe < minMesafe)
