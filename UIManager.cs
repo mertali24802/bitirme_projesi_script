@@ -17,14 +17,15 @@ public class UIManager : MonoBehaviour
     public float saydamlikMiktari = 0.1f;
     public float gecisHizi = 7f;
 
-    // --- ARKA PLAN ZAMANLAYICILARI ---
-    private float oyunBaslangicZamanlayici = 5f; // Oyun başı 5 saniye kuralı
+    [Header("Arka Plan Zamanlayıcıları")]
+    private float oyunBaslangicZamanlayici = 5f;
     private float hareketsizSure = 0f;
     private float canHasarZamanlayici = 0f;
     private float skillBasildiZamanlayici = 0f;
 
     [Header("Can UI Sarsıntı Efektleri")]
     public RectTransform canBariRect;
+    public Image canBariKanResmi;
     public float sarsintiSiddeti = 22f;
     public float sarsintiSuresi = 0.35f;
     private Vector2 orijinalPozisyon;
@@ -50,15 +51,12 @@ public class UIManager : MonoBehaviour
         else Destroy(gameObject);
     }
 
-    // Start fonksiyonunun başına IEnumerator ekleyerek zaman ayarlı (Coroutine) yapıyoruz
     void Start()
     {
-        // Başlangıçta yetenek karanlıklarını kapat
         if (blinkStrikeKaranlik != null) blinkStrikeKaranlik.gameObject.SetActive(false);
         if (zamanYavaslatmaKaranlik != null) zamanYavaslatmaKaranlik.gameObject.SetActive(false);
         if (dashKaranlik != null) dashKaranlik.gameObject.SetActive(false);
 
-        // Orijinal pozisyonu gecikmesiz olarak ilk karede kaydet
         if (canBariRect != null)
         {
             orijinalPozisyon = canBariRect.anchoredPosition;
@@ -67,19 +65,15 @@ public class UIManager : MonoBehaviour
 
     void Update()
     {
-
-        // --- 1. ZAMANLAYICILARI GERİYE SAYDIR ---
         if (oyunBaslangicZamanlayici > 0) oyunBaslangicZamanlayici -= Time.unscaledDeltaTime;
         if (canHasarZamanlayici > 0) canHasarZamanlayici -= Time.unscaledDeltaTime;
         if (skillBasildiZamanlayici > 0) skillBasildiZamanlayici -= Time.unscaledDeltaTime;
 
-        // --- 2. HAREKET KONTROLÜ (1 Saniye Kuralı) ---
         bool hareketEdiyorMu = Input.GetAxisRaw("Horizontal") != 0 || Input.GetAxisRaw("Vertical") != 0 || Input.GetKey(KeyCode.Space);
 
         if (hareketEdiyorMu) hareketsizSure = 0f;
         else hareketsizSure += Time.unscaledDeltaTime;
 
-        // --- 3. COOLDOWN RADYAN KONTROLLERİ ---
         if (playerCombat != null && blinkStrikeKaranlik != null)
         {
             float blinkKalanSure = playerCombat.ozelYetenekZamani - Time.time;
@@ -101,26 +95,21 @@ public class UIManager : MonoBehaviour
             else dashKaranlik.gameObject.SetActive(false);
         }
 
-        // --- 4. DİNAMİK SAYDAMLIK (ALPHA) MOTORU ---
-
-        // CAN UI KURALI: Başlangıçta (5s) VEYA Durunca (1s) VEYA Hasar yiyince (5s) %100 GÖRÜNÜR.
         bool canGorunurMu = (oyunBaslangicZamanlayici > 0f) || (hareketsizSure >= 1f) || (canHasarZamanlayici > 0f);
         float hedefCanAlpha = canGorunurMu ? 1f : saydamlikMiktari;
         if (canBariCanvasGroup != null)
             canBariCanvasGroup.alpha = Mathf.Lerp(canBariCanvasGroup.alpha, hedefCanAlpha, Time.unscaledDeltaTime * gecisHizi);
 
-        // SKILL UI KURALI: Başlangıçta (5s) VEYA Durunca (1s) VEYA Skill kullanınca (5s) %100 GÖRÜNÜR.
         bool skillGorunurMu = (oyunBaslangicZamanlayici > 0f) || (hareketsizSure >= 1f) || (skillBasildiZamanlayici > 0f);
         float hedefSkillAlpha = skillGorunurMu ? 1f : saydamlikMiktari;
         if (skillerCanvasGroup != null)
             skillerCanvasGroup.alpha = Mathf.Lerp(skillerCanvasGroup.alpha, hedefSkillAlpha, Time.unscaledDeltaTime * gecisHizi);
     }
 
-    // --- DIŞARIDAN ÇAĞRILAN BAŞARI SİNYALLERİ ---
     public void AnimasyonBlinkTetikle()
     {
         if (blinkStrikeAnimator != null) blinkStrikeAnimator.Play("Skill_Basildi");
-        skillBasildiZamanlayici = 5f; // Kullanıldığında 5 saniye görünür yap
+        skillBasildiZamanlayici = 5f; 
     }
 
     public void AnimasyonZamanTetikle()
@@ -139,7 +128,7 @@ public class UIManager : MonoBehaviour
     {
         if (canBariAnimator != null) canBariAnimator.SetInteger("MevcutCan", guncelCan);
 
-        canHasarZamanlayici = 5f; // Hasar yediğinde 5 saniye görünür yap
+        canHasarZamanlayici = 5f; 
 
         if (gameObject.activeInHierarchy)
         {
@@ -149,13 +138,29 @@ public class UIManager : MonoBehaviour
 
     private IEnumerator CanBariSarsintiRoutine()
     {
-        if (canBariRect == null) yield break; float gecenSure = 0f;
+        if (canBariRect == null) yield break;
+
+        float gecenSure = 0f;
+        Color orijinalRenk = Color.white;
+
+        if (canBariKanResmi != null) orijinalRenk = canBariKanResmi.color;
+
         while (gecenSure < sarsintiSuresi)
         {
-            float xOffset = Random.Range(-1f, 1f) * sarsintiSiddeti; float yOffset = Random.Range(-1f, 1f) * sarsintiSiddeti;
+            float xOffset = Random.Range(-1f, 1f) * sarsintiSiddeti;
+            float yOffset = Random.Range(-1f, 1f) * sarsintiSiddeti;
             canBariRect.anchoredPosition = orijinalPozisyon + new Vector2(xOffset, yOffset);
-            gecenSure += Time.unscaledDeltaTime; yield return null;
+
+            if (canBariKanResmi != null)
+            {
+                canBariKanResmi.color = Color.Lerp(Color.white, Color.red, Mathf.PingPong(gecenSure * 15f, 1f));
+            }
+
+            gecenSure += Time.unscaledDeltaTime;
+            yield return null;
         }
+
         canBariRect.anchoredPosition = orijinalPozisyon;
+        if (canBariKanResmi != null) canBariKanResmi.color = orijinalRenk;
     }
 }

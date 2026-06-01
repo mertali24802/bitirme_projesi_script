@@ -14,7 +14,6 @@ public class PlayerHealth : MonoBehaviour
     public float sarsintiSuresi = 0.3f;
     public float yenilmezlikSuresi = 1f;
 
-    // Dash sırasında diğer kodlardan (PlayerMovement) erişip değiştirebilmek için public yaptık
     [HideInInspector] public bool dashDokunulmazligi = false;
 
     private bool hasarAlabilirMi = true;
@@ -22,6 +21,7 @@ public class PlayerHealth : MonoBehaviour
     private PlayerMovement hareketKodu;
     private SpriteRenderer spriteRenderer;
     private Color orijinalRenk;
+    private Vector3 orijinalBoyut; 
 
     void Start()
     {
@@ -34,23 +34,21 @@ public class PlayerHealth : MonoBehaviour
         {
             orijinalRenk = spriteRenderer.color;
         }
+        orijinalBoyut = transform.localScale;
+
+        StartCoroutine(YenidenDogmaEfekti());
     }
 
     public void HasarAl(int hasarMiktari, float dusmanXPos)
     {
-        // Eğer normal yenilmezlik süresindeysek VEYA dash atıyorsak hasar alma!
         if (!hasarAlabilirMi || dashDokunulmazligi) return;
 
         mevcutCan -= hasarMiktari;
-        UIManager.instance.CanGuncelle(mevcutCan);
-        Debug.Log("Hasar Alındı! Kalan Can: " + mevcutCan);
+        if (UIManager.instance != null) UIManager.instance.CanGuncelle(mevcutCan);
 
         if (mevcutCan <= 0)
         {
-            GameManager.instance.GameOver();
-            // Karakterin hareketini ve görselini kapatarak öldüğünü belli edelim
-            spriteRenderer.enabled = false;
-            hareketKodu.enabled = false;
+            StartCoroutine(OlumUygula());
         }
         else
         {
@@ -58,15 +56,30 @@ public class PlayerHealth : MonoBehaviour
         }
     }
 
+    private IEnumerator OlumUygula()
+    {
+        hasarAlabilirMi = false;
+        if (hareketKodu != null) hareketKodu.enabled = false;
+
+        GetComponent<Collider2D>().enabled = false;
+
+        if (spriteRenderer != null) spriteRenderer.color = Color.gray;
+
+        rb.gravityScale = 3f; 
+        rb.linearVelocity = new Vector2(0f, 15f); 
+
+        yield return new WaitForSeconds(1.5f);
+
+        if (SceneFadeManager.instance != null)
+            SceneFadeManager.instance.SahneYukle(SceneManager.GetActiveScene().name);
+        else
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+
     private IEnumerator GeriTepmeUygula(float dusmanXPos)
     {
         hasarAlabilirMi = false;
-        hareketKodu.enabled = false;
-
-        // --- YENİ: FİZİKSEL ÇARPIŞMAYI GEÇİCİ KAPAT ---
-        int playerLayer = LayerMask.NameToLayer("Player");
-        int enemyLayer = LayerMask.NameToLayer("Enemy");
-        Physics2D.IgnoreLayerCollision(playerLayer, enemyLayer, true);
+        if (hareketKodu != null) hareketKodu.enabled = false;
 
         float tepmeYonu = transform.position.x < dusmanXPos ? -1f : 1f;
 
@@ -78,14 +91,32 @@ public class PlayerHealth : MonoBehaviour
         yield return new WaitForSeconds(sarsintiSuresi);
 
         if (spriteRenderer != null) spriteRenderer.color = orijinalRenk;
-        hareketKodu.enabled = true;
+        if (hareketKodu != null) hareketKodu.enabled = true;
 
-        // Sarsıntı süresi bitti, şimdi kalan yenilmezlik süresini bekle
         yield return new WaitForSeconds(yenilmezlikSuresi - sarsintiSuresi);
-
         hasarAlabilirMi = true;
+    }
 
-        // --- YENİ: FİZİKSEL ÇARPIŞMAYI GERİ AÇ ---
-        Physics2D.IgnoreLayerCollision(playerLayer, enemyLayer, false);
+    private IEnumerator YenidenDogmaEfekti()
+    {
+        hasarAlabilirMi = false; 
+        float flashSuresi = 2f;
+        float gecenSure = 0f;
+        bool gorunur = true;
+
+        while (gecenSure < flashSuresi)
+        {
+            gorunur = !gorunur; 
+            if (spriteRenderer != null)
+            {
+                spriteRenderer.color = gorunur ? orijinalRenk : new Color(1f, 1f, 1f, 0.3f);
+            }
+
+            yield return new WaitForSeconds(0.15f); 
+            gecenSure += 0.15f;
+        }
+
+        if (spriteRenderer != null) spriteRenderer.color = orijinalRenk;
+        hasarAlabilirMi = true; 
     }
 }

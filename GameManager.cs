@@ -38,7 +38,6 @@ public class GameManager : MonoBehaviour
             if (bulaniklikEfekti != null) bulaniklikEfekti.active = false;
         }
 
-        // --- ENTEGRE SAVE-LOAD BAŞLANGICI ---
         if (SaveManager.KayitVarMi())
         {
             SaveData yuklenenVeri = SaveManager.Yukle();
@@ -65,7 +64,41 @@ public class GameManager : MonoBehaviour
             if (isPaused) OyunaDevamEt();
             else OyunuDurdur();
         }
+
+
+        if (Input.GetKeyDown(KeyCode.F2))
+        {
+            GameObject kapi = GameObject.Find("CikisKapisi");
+            GameObject oyuncu = GameObject.FindGameObjectWithTag("Player");
+
+            if (kapi != null && oyuncu != null)
+            {
+                oyuncu.transform.position = kapi.transform.position;
+                Debug.Log("HİLE AKTİF: Kapıya Işınlanıldı!");
+            }
+        }
+
+        if (Input.GetKeyDown(KeyCode.F3))
+        {
+            GameObject[] dusmanlar = GameObject.FindGameObjectsWithTag("Enemy");
+
+            foreach (GameObject dusman in dusmanlar)
+            {
+                IDamageable hasarAlabilirObje = dusman.GetComponent<IDamageable>();
+                if (hasarAlabilirObje != null)
+                {
+                    hasarAlabilirObje.HasarAl(999, dusman.transform.position.x);
+                    
+                }
+                else
+                {
+                    Destroy(dusman);
+                }
+            }
+            Debug.Log("HİLE AKTİF: " + dusmanlar.Length + " düşman yokedildi!");
+        }
     }
+
 
     public void OyunuDurdur()
     {
@@ -110,7 +143,6 @@ public class GameManager : MonoBehaviour
         yield return new WaitForSecondsRealtime(0.25f);
         Time.timeScale = 1f;
 
-        // Kural: Oyundayken yeniden başla dediğinde save silinecek
         SaveManager.KaydiSil();
 
         if (SceneFadeManager.instance != null)
@@ -118,8 +150,6 @@ public class GameManager : MonoBehaviour
         else
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
-
-    // --- KURAL: ANA MENÜYE DÖN DERKEN OTOMATİK KAYDEDER ---
     public void AnaMenuyeDonVeKaydet()
     {
         GameObject oyuncu = GameObject.FindGameObjectWithTag("Player");
@@ -132,7 +162,7 @@ public class GameManager : MonoBehaviour
             PlayerHealth oyuncuCanKodu = oyuncu.GetComponent<PlayerHealth>();
             data.mevcutCan = oyuncuCanKodu != null ? oyuncuCanKodu.mevcutCan : 6;
 
-            SaveManager.Kaydet(data); // Bilgisayara yazdır
+            SaveManager.Kaydet(data); 
         }
 
         if (oyunEventSistemi != null) oyunEventSistemi.enabled = false;
@@ -148,6 +178,5 @@ public class GameManager : MonoBehaviour
     {
         isGameOver = true;
         Debug.Log("Karakter öldü!");
-        // Karakter ölünce save dosyasını silmek istersen buraya da SaveManager.KaydiSil(); ekleyebilirsin
     }
 }

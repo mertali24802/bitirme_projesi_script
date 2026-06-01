@@ -24,7 +24,7 @@ public class Enemy : MonoBehaviour, IDamageable
     public float geriTepmeGucuY = 3f;
     public float sersemlemeSuresi = 0.3f;
     private bool sersemlediMi = false;
-    private bool olduMu = false; // Ölüm kontrolü
+    private bool olduMu = false; 
 
     [Header("Katmanlar (Layers)")]
     public LayerMask zeminKatmani;
@@ -46,13 +46,12 @@ public class Enemy : MonoBehaviour, IDamageable
         rb = GetComponent<Rigidbody2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
 
-        // Canı fulleyerek başlat
         mevcutCan = maxCan;
     }
 
     void Update()
     {
-        if (sersemlediMi || olduMu) return; // Sersemlemişse veya ölüyse düşünmeyi bırak
+        if (sersemlediMi || olduMu) return; 
 
         Vector2 bakisYonu = sagaMiBakiyor ? Vector2.right : Vector2.left;
 
@@ -76,7 +75,7 @@ public class Enemy : MonoBehaviour, IDamageable
 
     void FixedUpdate()
     {
-        if (sersemlediMi || olduMu) return; // Hareket kodunu dondur
+        if (sersemlediMi || olduMu) return; 
 
         if (oyuncuSaldiriMenzilindeMi)
         {
@@ -98,10 +97,9 @@ public class Enemy : MonoBehaviour, IDamageable
         sonDonmeZamani = Time.time;
     }
 
-    // HASAR SİSTEMİ GÜNCELLENDİ
     public void HasarAl(int hasarMiktari, float saldirganXPos)
     {
-        if (olduMu) return; // Zaten ölüyse tekrar hasar yemesini engelle
+        if (olduMu) return; 
 
         mevcutCan -= hasarMiktari;
 
@@ -116,7 +114,6 @@ public class Enemy : MonoBehaviour, IDamageable
         }
     }
 
-    // NORMAL HASAR ALMA (ÖLMEDİYSE)
     private IEnumerator GeriTepmeUygula(float saldirganXPos)
     {
         sersemlediMi = true;
@@ -133,23 +130,18 @@ public class Enemy : MonoBehaviour, IDamageable
         sersemlediMi = false;
     }
 
-    // ÖLÜM ANİMASYONU (CESEDİN FIRLAMASI)
     private IEnumerator OlumUygula(float saldirganXPos)
     {
         sersemlediMi = true;
 
-        // Öldüğünü belli etmek için rengini griye çek
         if (spriteRenderer != null) spriteRenderer.color = Color.gray;
 
-        // Bedeni geriye fırlat
         float tepmeYonu = transform.position.x < saldirganXPos ? -1f : 1f;
         rb.linearVelocity = Vector2.zero;
         rb.AddForce(new Vector2(tepmeYonu * geriTepmeGucuX, geriTepmeGucuY), ForceMode2D.Impulse);
 
-        // Kan veya patlama efektini spawnla
         if (patlamaEfekti != null) Instantiate(patlamaEfekti, transform.position, Quaternion.identity);
 
-        // Cesedin havada savrulmasını (sersemleme süresi kadar) izlet, sonra sil
         yield return new WaitForSeconds(sersemlemeSuresi);
         Destroy(gameObject);
     }

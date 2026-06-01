@@ -33,13 +33,12 @@ public class SceneFadeManager : MonoBehaviour
 
     void Start()
     {
-        // Eğer oyun İLK KEZ açılıyorsa (Ana menüye masaüstünden girildiyse) siyah ekranı tamamen gizle
         if (ilkAcilis)
         {
             if (fadeImage != null) fadeImage.gameObject.SetActive(false);
             ilkAcilis = false;
         }
-        else // Eğer başka bir sahneden (oyundan) geliyorsak animasyonu oynat
+        else 
         {
             if (fadeImage != null)
             {
@@ -57,24 +56,20 @@ public class SceneFadeManager : MonoBehaviour
 
     private IEnumerator KaranlikSahneGecisi(string sahneAdi)
     {
-        // 1. GÜVENLİK: Obje kapalıysa (sen editörde kapattıysan) ZORLA AÇ!
         if (fadeImage != null)
         {
             fadeImage.gameObject.SetActive(true);
-            fadeImage.raycastTarget = true; // Arkadaki butonlara tıklanmayı engelle
+            fadeImage.raycastTarget = true; 
         }
 
-        // Sahnedeki müziği bul (Müzik de ekranla birlikte yavaşça kısılacak)
         AudioSource sahneMuzigi = FindFirstObjectByType<AudioSource>();
         float baslangicSesi = sahneMuzigi != null ? sahneMuzigi.volume : 0f;
 
-        // 2. SİNEMATİK KARARMA (Fade Out)
         float gecenSure = 0f;
         while (gecenSure < gecisSuresi)
         {
             gecenSure += Time.unscaledDeltaTime;
 
-            // Düz (lineer) bir geçiş yerine, verdiğimiz eğriyi (AnimationCurve) kullanarak yumuşat
             float yuzde = gecenSure / gecisSuresi;
             float egriselYuzde = gecisEgrisi.Evaluate(yuzde);
 
@@ -87,14 +82,11 @@ public class SceneFadeManager : MonoBehaviour
             yield return null;
         }
 
-        // Zaman durmuşsa sıfırla ve yeni sahneyi yükle
         Time.timeScale = 1f;
         SceneManager.LoadScene(sahneAdi);
 
-        // Sahnenin, ışıkların ve objelerin tam oturması için 1 kare bekle
         yield return null;
 
-        // 3. Yeni sahnede aydınlanma sürecini başlat
         StartCoroutine(SiyahEkrandanAydinliga());
     }
 
@@ -114,8 +106,6 @@ public class SceneFadeManager : MonoBehaviour
             yield return null;
         }
 
-        // 4. TEMİZLİK: Geçiş bitince objeyi TAMAMEN KAPAT. 
-        // Böylece hem performansı yemez hem de ekranın önünde görünmez bir duvar bırakmaz.
         if (fadeImage != null)
         {
             fadeImage.raycastTarget = false;

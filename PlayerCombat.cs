@@ -86,6 +86,12 @@ public class PlayerCombat : MonoBehaviour
         ozelSaldiriYapiyorMu = true;
         canKodu.dashDokunulmazligi = true;
 
+        if (anim != null)
+        {
+            anim.SetBool("DashAtiyorMu", true); 
+            anim.speed = 0f; 
+        }
+
         float orijinalYercekimi = rb.gravityScale;
         rb.gravityScale = 0f;
         rb.linearVelocity = Vector2.zero;
@@ -102,22 +108,22 @@ public class PlayerCombat : MonoBehaviour
             vurulanlarListesi.Add(hedefDusman);
             transform.position = hedefDusman.transform.position + new Vector3(0.5f, 0, 0);
 
-            if (anim != null) anim.SetTrigger("Saldir");
-            StartCoroutine(KilicIziniGoster());
-
             sarsintiKaynagi.GenerateImpulse();
             TimeManager.instance.HitstopTetikle(0.1f);
 
-            // --- DEĞİŞEN KISIM BURASI ---
-            // Burada kime vurduğunun bir önemi yok, objede IDamageable varsa hasarı yer.
             IDamageable hasarAlabilirObje = hedefDusman.GetComponent<IDamageable>();
             hasarAlabilirObje?.HasarAl(saldiriHasari, transform.position.x);
-            // ------------------------------------------
 
             yapilanVurusSayisi++;
             aramaMerkezi = hedefDusman.transform.position;
 
             yield return new WaitForSeconds(0.15f);
+        }
+
+        if (anim != null)
+        {
+            anim.speed = 1f; 
+            anim.SetBool("DashAtiyorMu", false); 
         }
 
         rb.gravityScale = orijinalYercekimi;
@@ -134,7 +140,6 @@ public class PlayerCombat : MonoBehaviour
 
         foreach (Collider2D dusman in yakindakiDusmanlar)
         {
-            // YENİ EKLENEN ÇÖKME KALKANI: Obje silinmişse veya yoksa direkt es geç!
             if (dusman == null || dusman.gameObject == null) continue;
 
             if (gormezdenGelinecekler.Contains(dusman)) continue;

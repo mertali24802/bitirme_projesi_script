@@ -8,7 +8,7 @@ public class AttackSlimeAI : MonoBehaviour, IDamageable
 {
     [Header("Temel Ayarlar")]
     public int maxCan = 3;
-    private int mevcutCan;
+    public int mevcutCan;
 
     [Header("Zıplama Güçleri")]
     public float devriyeZiplamaX = 3f;
@@ -41,6 +41,9 @@ public class AttackSlimeAI : MonoBehaviour, IDamageable
     public Transform algilayiciNokta;
     public LayerMask zeminKatmani;
     public LayerMask oyuncuKatmani;
+
+    [Header("Efektler ve Alt Objeler")]
+    public TrailRenderer saldiriIzi;
 
     [Header("Geri Tepme (Knockback & Bounce)")]
     public float hasarYemeGeriTepmeX = 15f;
@@ -82,6 +85,7 @@ public class AttackSlimeAI : MonoBehaviour, IDamageable
 
     void Start()
     {
+        if (saldiriIzi != null) saldiriIzi.emitting = false;
         rb = GetComponent<Rigidbody2D>();
         kolajdir = GetComponent<Collider2D>();
 
@@ -195,29 +199,19 @@ public class AttackSlimeAI : MonoBehaviour, IDamageable
 
         if (kolajdir == null || algilayiciNokta == null) return;
 
-        // Alarmın kesilip kesilmediğini kontrol et
-        // Alarmın kesilip kesilmediğini kontrol et
-        // Alarmın kesilip kesilmediğini kontrol et
         if (alarmIleUyandirildi)
         {
             if (aktifAlarmKaynagi == null || !aktifAlarmKaynagi || !aktifAlarmKaynagi.gameObject.activeInHierarchy || aktifAlarmKaynagi.mevcutDurum != PatrolState.Alarm)
             {
-                // Sadece alarm bağlantısını koparıyoruz.
                 alarmIleUyandirildi = false;
                 aktifAlarmKaynagi = null;
-
-                // BAŞKA HİÇBİR ŞEY YAPMA!
-                // Zorla 'Uyari' durumuna sokan veya ekstra Raycast atan kodları sildik.
-                // Zaten kodun aşağısındaki normal sistem çalışmaya devam edecek.
-                // Eğer slime oyuncuyu görüyorsa saldırmaya devam edecek (donmayacak), 
-                // gerçekten göremiyorsa da 0.5 saniye sonra kendi kendine Uyarı'ya geçecek.
             }
         }
 
         if (mevcutDurum == SlimeState.Olu || mevcutDurum == SlimeState.Sersem || mevcutDurum == SlimeState.Saldiri || ziplamayaHazirlaniyor) return;
 
         Vector2 bakisYonu = sagaMiBakiyor ? Vector2.right : Vector2.left;
-        Vector2 merkez = kolajdir.bounds.center; // Merkeze alındı (Yere çarpma fix)
+        Vector2 merkez = kolajdir.bounds.center; 
         float yukseklik = kolajdir.bounds.extents.y;
 
         RaycastHit2D zeminKontrol = Physics2D.Raycast(merkez, Vector2.down, yukseklik + 0.1f, zeminKatmani);
@@ -238,15 +232,12 @@ public class AttackSlimeAI : MonoBehaviour, IDamageable
             float aktifMenzil = (mevcutDurum == SlimeState.Uyari || mevcutDurum == SlimeState.Agresif) ? onGorusMesafesi * genisletilmisGorusCarpani : onGorusMesafesi;
             float aktifArkaGorus = (mevcutDurum == SlimeState.Agresif || mevcutDurum == SlimeState.Uyari) ? 6f : arkaGorusMesafesi;
 
-            // KUSURSUZ GÖRÜŞ VE WALLHACK MOTORU
             if (alarmIleUyandirildi)
             {
-                // Eğer alarm çalıyorsa, mesafe/duvar umursamaz direkt görür (Wallhack)
                 oyuncuyuGoruyor = true;
             }
             else
             {
-                // Alarm yoksa düzgünce raycast at, ancak yere çarpmaması için merkezden at
                 Vector2 oyuncuyaDogruYön = (hedefMerkez - (Vector3)merkez).normalized;
                 RaycastHit2D duvarEngel = Physics2D.Raycast(merkez, oyuncuyaDogruYön, oyuncuMesafe, zeminKatmani);
                 if (duvarEngel.collider != null)
@@ -288,7 +279,6 @@ public class AttackSlimeAI : MonoBehaviour, IDamageable
                 break;
 
             case SlimeState.Agresif:
-                // Kaynak kesildiğinde (veya saklanınca) 0.1 saniyelik toleransla direkt şüpheye düşer (Uyarı)
                 if (!oyuncuyuGoruyor && Time.time > sonOyuncuyuGormeZamani + 0.5f)
                 {
                     DurumDegistir(SlimeState.Uyari);
@@ -375,9 +365,18 @@ public class AttackSlimeAI : MonoBehaviour, IDamageable
             if (mevcutDurum == SlimeState.Olu || mevcutDurum == SlimeState.Sersem || mevcutDurum == SlimeState.Uyari) return;
 
             float vurmaYonu = sagaMiBakiyor ? 1f : -1f;
+
+            if (saldiriIzi != null)
+            {
+                saldiriIzi.Clear();
+                saldiriIzi.emitting = true;
+            }
+
             rb.linearVelocity = new Vector2(vurmaYonu * saldiriAtilmaHizi, 3f);
 
             await Awaitable.WaitForSecondsAsync(0.2f);
+
+            if (saldiriIzi != null) saldiriIzi.emitting = false;
 
             if (!this || !gameObject.activeInHierarchy) return;
 
@@ -407,11 +406,11 @@ public class AttackSlimeAI : MonoBehaviour, IDamageable
         }
         finally
         {
-            // EĞER SALDIRI BİR ŞEKİLDE YARIM KALIRSA, DÜŞMANIN FİZİK KİLİTLERİNİ ZORLA ÇÖZ
             if (this != null && rb != null && mevcutDurum != SlimeState.Olu)
             {
                 rb.constraints = RigidbodyConstraints2D.FreezeRotation;
             }
+            if (saldiriIzi != null) saldiriIzi.emitting = false;
         }
     }
 
@@ -434,7 +433,7 @@ public class AttackSlimeAI : MonoBehaviour, IDamageable
 
             if (mevcutDurum == SlimeState.Olu || mevcutDurum == SlimeState.Sersem || mevcutDurum == SlimeState.Saldiri)
             {
-                return; // Early return atsak bile finally bloğu çalışıp flag'i false yapacak!
+                return; 
             }
 
             if (algilayiciNokta == null)
@@ -464,7 +463,6 @@ public class AttackSlimeAI : MonoBehaviour, IDamageable
         }
         finally
         {
-            // OYUN NE DURUMDA OLURSA OLSUN, METOTTAN ÇIKARKEN BU ÇALIŞIR
             if (this != null)
             {
                 ziplamayaHazirlaniyor = false;
@@ -483,7 +481,7 @@ public class AttackSlimeAI : MonoBehaviour, IDamageable
     {
         if (mevcutDurum == SlimeState.Olu) return;
 
-        mevcutCan -= 1;
+        mevcutCan = mevcutCan - 1;
         CanBariGorseliGuncelle();
         CanBariSarsinti();
 
@@ -547,7 +545,6 @@ public class AttackSlimeAI : MonoBehaviour, IDamageable
         }
         finally
         {
-            // Sersemleme durumu bozulsa bile fiziksel kilitler üstünde kalmasın
             if (this != null && rb != null && mevcutDurum != SlimeState.Olu)
             {
                 rb.gravityScale = 3f;

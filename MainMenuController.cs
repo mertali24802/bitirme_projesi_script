@@ -12,7 +12,6 @@ public class MainMenuController : MonoBehaviour
     [Header("Ayarlar")]
     public string anaOyunSahnesiAdi = "SampleScene";
 
-    // BAŞLANGIÇ KALKANI: İlk saliselerde oluşan fare/glitch hatalarını engeller
     private bool sistemHazir = false;
 
     void Start()
@@ -26,7 +25,6 @@ public class MainMenuController : MonoBehaviour
         ButonAnimasyonlariniKur(btnDevamEt);
         ButonAnimasyonlariniKur(btnCikis);
 
-        // Oyun açıldıktan 0.2 saniye sonra fare dinlemeyi aktif et (Glitch'i %100 önler)
         Invoke("SistemiAktifEt", 0.2f);
     }
 
@@ -43,21 +41,18 @@ public class MainMenuController : MonoBehaviour
         EventTrigger trigger = btn.gameObject.GetComponent<EventTrigger>();
         if (trigger == null) trigger = btn.gameObject.AddComponent<EventTrigger>();
 
-        // ÜZERİNE GELİNCE
         EventTrigger.Entry enter = new EventTrigger.Entry { eventID = EventTriggerType.PointerEnter };
         enter.callback.AddListener((data) => {
             if (btn.interactable && sistemHazir) anim.Play("Highlighted");
         });
         trigger.triggers.Add(enter);
 
-        // ÇIKINCA
         EventTrigger.Entry exit = new EventTrigger.Entry { eventID = EventTriggerType.PointerExit };
         exit.callback.AddListener((data) => {
             if (btn.interactable && sistemHazir) anim.Play("Button_Hover_Exit");
         });
         trigger.triggers.Add(exit);
 
-        // TIKLANINCA (Hatayı çözdüğümüz "Pressed" kısmı)
         EventTrigger.Entry down = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
         down.callback.AddListener((data) => {
             if (btn.interactable && sistemHazir) anim.Play("Pressed");

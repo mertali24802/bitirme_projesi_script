@@ -30,6 +30,7 @@ public class PlayerMovement : MonoBehaviour
     private float orijinalYercekimi;
 
     [Header("Dash Ayarları")]
+    public TrailRenderer dashIzi;
     public float dashKuvveti = 24f;
     public float dashSuresi = 0.2f;
     public float dashBeklemeSuresi = 5f;
@@ -52,10 +53,11 @@ public class PlayerMovement : MonoBehaviour
     private Collider2D kolajdir;
     private PlayerHealth canKodu;
     private float yatayGirdi;
-    private Animator anim; // BEYNİ BAĞLIYORUZ
+    private Animator anim; 
 
     void Start()
     {
+        if (dashIzi != null) dashIzi.emitting = false;
         rb = GetComponent<Rigidbody2D>();
         kolajdir = GetComponent<Collider2D>();
         canKodu = GetComponent<PlayerHealth>();
@@ -70,7 +72,7 @@ public class PlayerMovement : MonoBehaviour
 
     void Update()
     {
-        // Güvenlik Duvarları (Menüdeysek veya Dash atıyorsak kodu dondur)
+        if (dashAtiyorMu) return;
         if (GameManager.instance != null && GameManager.instance.isPaused) return;
         if (dashAtiyorMu) return;
 
@@ -82,19 +84,15 @@ public class PlayerMovement : MonoBehaviour
             if (duvarZiplamaZamanlayicisi <= 0f) duvardanZipliyorMu = false;
         }
 
-        // Karakterin Sağa/Sola Dönmesi (GÜNCELLENDİ)
         if (yatayGirdi != 0 && !duvardanZipliyorMu)
         {
             sonYon = yatayGirdi;
 
-            // Karakterin Y eksenindeki (orijinal) boyutunu hafızaya al
             float mevcutBoyut = Mathf.Abs(transform.localScale.y);
 
-            // X eksenini yöne göre değiştir, ama Y ve Z boyutlarına hiç dokunma!
             transform.localScale = new Vector3(sonYon * mevcutBoyut, mevcutBoyut, transform.localScale.z);
         }
 
-        // --- ANİMATÖR BİLGİ AKTARIMI ---
         if (anim != null)
         {
             anim.SetFloat("Hiz", Mathf.Abs(yatayGirdi));
@@ -102,7 +100,6 @@ public class PlayerMovement : MonoBehaviour
             anim.SetFloat("Y_Hizi", rb.linearVelocity.y);
         }
 
-        // Sensör Algılayıcıları
         Vector2 merkez = kolajdir.bounds.center;
         float genislik = kolajdir.bounds.extents.x;
         float yukseklik = kolajdir.bounds.extents.y;
@@ -111,7 +108,6 @@ public class PlayerMovement : MonoBehaviour
         RaycastHit2D zeminSol = Physics2D.Raycast(merkez - new Vector2(genislik - 0.05f, 0), Vector2.down, yukseklik + 0.1f, zeminKatmani);
         RaycastHit2D zeminSag = Physics2D.Raycast(merkez + new Vector2(genislik - 0.05f, 0), Vector2.down, yukseklik + 0.1f, zeminKatmani);
 
-        // EĞER ZIPLADIYSAK SENSÖRÜ KISA SÜRELİĞİNE İPTAL ET
         if (Time.time > zeminKontrolKapanmaZamani)
         {
             zemindeMi = zeminOrta || zeminSol || zeminSag;
@@ -121,7 +117,6 @@ public class PlayerMovement : MonoBehaviour
             zemindeMi = false;
         }
 
-        // EKSİK OLAN VE GERİ EKLENEN BLOK: Yerdeysek zıplama haklarını geri ver
         if (zemindeMi)
         {
             coyoteTimeSayaci = coyoteTime;
@@ -134,21 +129,17 @@ public class PlayerMovement : MonoBehaviour
             coyoteTimeSayaci -= Time.deltaTime;
         }
 
-        // ========================================================
-        // ZIPLAMA & EFEKTLERİN TETİKLENDİĞİ YER
-        // ========================================================
         if (Input.GetButtonDown("Jump") && !ziplamaKilitliMi && !duvardanZipliyorMu && !ziplamayaHazirlaniyor)
         {
             if (duvardanKayiyorMu)
             {
                 DuvardanZiplamaBaslat();
             }
-            else if (coyoteTimeSayaci > 0f) // İLK ZIPLAMA
+            else if (coyoteTimeSayaci > 0f) 
             {
-                // Anında zıplamak yerine hazırlık sürecini başlat
                 ZiplamaHazirlikUygula();
             }
-            else if (ciftZiplamaYapabilirMi) // ÇİFT ZIPLAMA (Anında gerçekleşir)
+            else if (ciftZiplamaYapabilirMi) 
             {
                 rb.linearVelocity = new Vector2(rb.linearVelocity.x, ziplamaKuvveti);
                 ciftZiplamaYapabilirMi = false;
@@ -212,36 +203,58 @@ public class PlayerMovement : MonoBehaviour
         if (UIManager.instance != null) UIManager.instance.AnimasyonDashTetikle();
         dashAtiyorMu = true;
 
-        if (anim != null) anim.SetBool("DashAtiyorMu", true); // DASH ANİMASYONU BAŞLAR
+        if (anim != null) anim.SetBool("DashAtiyorMu", true);
         if (canKodu != null) canKodu.dashDokunulmazligi = true;
+
+        if (dashIzi != null)
+        {
+            dashIzi.Clear(); 
+            dashIzi.emitting = true;
+        }
+
+        int playerLayer = LayerMask.NameToLayer("Player");
+        int enemyLayer = LayerMask.NameToLayer("Enemy");
+        Physics2D.IgnoreLayerCollision(playerLayer, enemyLayer, true);
 
         float orijinalYercekimiGecici = rb.gravityScale;
         rb.gravityScale = 0f;
+
+        RigidbodyConstraints2D orijinalKilit = rb.constraints;
+        rb.constraints = orijinalKilit | RigidbodyConstraints2D.FreezePositionY;
+
         rb.linearVelocity = new Vector2(sonYon * dashKuvveti, 0f);
 
-        yield return new WaitForSeconds(dashSuresi);
+        try
+        {
+            yield return new WaitForSeconds(dashSuresi);
+        }
+        finally
+        {
+            rb.gravityScale = orijinalYercekimiGecici;
 
-        rb.gravityScale = orijinalYercekimiGecici;
-        if (canKodu != null) canKodu.dashDokunulmazligi = false;
+            rb.constraints = orijinalKilit;
 
-        if (anim != null) anim.SetBool("DashAtiyorMu", false); // DASH ANİMASYONU BİTER
-        dashAtiyorMu = false;
-        sonDashZamani = Time.time;
+            Physics2D.IgnoreLayerCollision(playerLayer, enemyLayer, false);
+
+            if (canKodu != null) canKodu.dashDokunulmazligi = false;
+
+            if (dashIzi != null) dashIzi.emitting = false;
+
+            if (anim != null) anim.SetBool("DashAtiyorMu", false); 
+            dashAtiyorMu = false;
+            sonDashZamani = Time.time;
+        }
     }
 
     [Header("Zıplama Gecikmesi (Anticipation)")]
     [Tooltip("Karakterin zıplamadan önce ne kadar çömeleceği (Saniye)")]
     public float hazirlikSuresi = 0.15f;
-    // 0.15 saniye çömelmeyi net hissettirir. İstersen Inspector'dan 0.2 de yapabilirsin.
-
-    // Coroutine yerine Unity 6 standart Async metodu:
     private async void ZiplamaHazirlikUygula()
     {
         ziplamayaHazirlaniyor = true;
 
         if (anim != null) anim.Play("jump_anticipation");
 
-        // Awaitable ile oyun zamanına bağlı bekleme (Garbage Collector yormaz)
         await Awaitable.WaitForSecondsAsync(hazirlikSuresi);
 
         rb.linearVelocity = new Vector2(rb.linearVelocity.x, ziplamaKuvveti);

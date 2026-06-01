@@ -31,6 +31,12 @@ public class PatrolEnemyAI : MonoBehaviour, IDamageable
     private float sonAlarmGenislemeZamani;
     private int mevcutBuyumeSayisi = 0;
 
+    [Header("Alarm Zıplama Ayarları")]
+    public float alarmZiplamaAraligi = 1f; 
+    private float alarmZiplamaZamanlayicisi;
+    public float alarmZiplamaGucuX = 2f; 
+    public float alarmZiplamaGucuY = 6f;
+
     [Header("Sensörler")]
     public Transform algilayiciNokta;
     public LayerMask zeminKatmani;
@@ -102,6 +108,13 @@ public class PatrolEnemyAI : MonoBehaviour, IDamageable
         {
             PlayerHealth oyuncuCan = temas.gameObject.GetComponent<PlayerHealth>();
             if (oyuncuCan != null) oyuncuCan.HasarAl(1, transform.position.x);
+
+            if (mevcutDurum == PatrolState.Devriye || mevcutDurum == PatrolState.Suphe)
+            {
+                bool oyuncuSagdaMi = (temas.transform.position.x > transform.position.x);
+                if (oyuncuSagdaMi != sagaMiBakiyor) YonCevir(); 
+                DurumDegistir(PatrolState.Alarm); 
+            }
         }
     }
 
@@ -145,7 +158,6 @@ public class PatrolEnemyAI : MonoBehaviour, IDamageable
                 if (unlemObjesi != null) unlemObjesi.SetActive(true);
                 if (unlemAnimator != null) unlemAnimator.Play("unlem_loop", -1, 0f);
 
-                // Alarm sıfırlanır ve limit sayacı baştan başlar
                 guncelAlarmMenzili = baslangicAlarmMenzili;
                 mevcutBuyumeSayisi = 0;
 
@@ -234,13 +246,12 @@ public class PatrolEnemyAI : MonoBehaviour, IDamageable
         }
         else if (mevcutDurum == PatrolState.Alarm)
         {
-            // YENİ: Sadece limite ulaşana kadar alarm dalgası genişler
             if (mevcutBuyumeSayisi < maxAlarmBuyumeSayisi)
             {
                 if (Time.time >= sonAlarmGenislemeZamani + alarmGenislemeSuresi)
                 {
                     guncelAlarmMenzili += alarmGenislemeMiktari;
-                    mevcutBuyumeSayisi++; // Büyüme sayacını artır
+                    mevcutBuyumeSayisi++;
                     AlarmiDalgasiYarat();
                     sonAlarmGenislemeZamani = Time.time;
                 }
@@ -263,18 +274,14 @@ public class PatrolEnemyAI : MonoBehaviour, IDamageable
         Collider2D[] yakindakiDusmanlar = Physics2D.OverlapCircleAll(transform.position, guncelAlarmMenzili);
         foreach (Collider2D hit in yakindakiDusmanlar)
         {
-            // Kırmızı slime'ları uyandır
             AttackSlimeAI saldirgan = hit.GetComponent<AttackSlimeAI>();
             if (saldirgan != null) saldirgan.AlarmiDuy(this);
 
-            // ZİNCİRLEME ALARM: Diğer devriye slime'ları da uyar
             PatrolEnemyAI baskaGozcu = hit.GetComponent<PatrolEnemyAI>();
             if (baskaGozcu != null && baskaGozcu != this)
             {
-                // Zaten ölü veya alarm durumundaysa karışma
                 if (baskaGozcu.mevcutDurum != PatrolState.Olu && baskaGozcu.mevcutDurum != PatrolState.Alarm)
                 {
-                    // Diğer gözcü şüphe barını beklemeden direkt Alarm'a (kırmızıya) geçer ve kendi dalgasını yaymaya başlar
                     baskaGozcu.DurumDegistir(PatrolState.Alarm);
                 }
             }
@@ -283,19 +290,27 @@ public class PatrolEnemyAI : MonoBehaviour, IDamageable
 
     private async void PanikZiplamasiBaslat(int suAnkiPanikToken)
     {
+        float zeybekYonu = sagaMiBakiyor ? 1f : -1f;
+
         while (mevcutDurum == PatrolState.Alarm)
         {
             if (!this || !gameObject.activeInHierarchy || panikToken != suAnkiPanikToken) return;
 
             if (anaAnimator != null) anaAnimator.Play("slime_panik", -1, 0f);
 
-            float rastgeleYon = Random.value > 0.5f ? 1f : -1f;
-            rb.linearVelocity = new Vector2(rastgeleYon * 1.5f, 6f);
+            zeybekYonu = -zeybekYonu;
+
+            if ((zeybekYonu > 0 && !sagaMiBakiyor) || (zeybekYonu < 0 && sagaMiBakiyor))
+            {
+                YonCevir();
+            }
+
+            rb.linearVelocity = new Vector2(zeybekYonu * alarmZiplamaGucuX, alarmZiplamaGucuY);
 
             await Awaitable.WaitForSecondsAsync(0.4f);
             if (!this || !gameObject.activeInHierarchy || panikToken != suAnkiPanikToken) return;
 
-            rb.linearVelocity = Vector2.zero;
+            rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
 
             await Awaitable.WaitForSecondsAsync(0.3f);
             if (!this || !gameObject.activeInHierarchy || panikToken != suAnkiPanikToken) return;
@@ -405,7 +420,18 @@ public class PatrolEnemyAI : MonoBehaviour, IDamageable
     {
         DurumDegistir(PatrolState.Olu);
 
-        if (kolajdir != null) kolajdir.enabled = false;
+        if (kolajdir != null)
+        {
+            GameObject oyuncu = GameObject.FindGameObjectWithTag("Player");
+            if (oyuncu != null)
+            {
+                Collider2D oyuncuKolajdiri = oyuncu.GetComponent<Collider2D>();
+                if (oyuncuKolajdiri != null)
+                {
+                    Physics2D.IgnoreCollision(kolajdir, oyuncuKolajdiri, true);
+                }
+            }
+        }
 
         hasarToken++;
         int suAnkiToken = hasarToken;

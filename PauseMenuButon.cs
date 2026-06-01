@@ -11,7 +11,6 @@ public class PauseMenuButon : MonoBehaviour, IPointerEnterHandler, IPointerExitH
     private Button btn;
     private bool kilitliMi = false;
 
-    // SimsekKontrol'den transfer edilen mantık
     private bool simsekKullanildi = false;
 
     void Awake()
@@ -23,7 +22,7 @@ public class PauseMenuButon : MonoBehaviour, IPointerEnterHandler, IPointerExitH
     void OnEnable()
     {
         kilitliMi = false;
-        simsekKullanildi = false; // Menü her açıldığında sıfırlanır
+        simsekKullanildi = false; 
 
         if (simsekCanvasGroup != null)
             simsekCanvasGroup.alpha = 1f;
@@ -39,7 +38,6 @@ public class PauseMenuButon : MonoBehaviour, IPointerEnterHandler, IPointerExitH
 
         anim.Play("Highlighted");
 
-        // ŞİMŞEK MANTIĞI: İlk girişte görünür (zaten OnEnable'da 1 oldu), sonraki girişlerde görünmez.
         if (!simsekKullanildi)
         {
             simsekKullanildi = true;
