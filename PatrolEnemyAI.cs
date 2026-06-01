@@ -1,5 +1,5 @@
 using UnityEngine;
-using System.Collections;
+using System.Threading.Tasks;
 
 public enum PatrolState { Devriye, Suphe, Alarm, Olu }
 
@@ -65,10 +65,8 @@ public class PatrolSlimeAI : MonoBehaviour
 
     private bool ziplamayaHazirlaniyor = false;
     private bool kenardaBekliyor = false;
-
-    private Coroutine kenarRutini;
-    private Coroutine ziplamaRutini;
-    private Coroutine panikRutini;
+    private int hasarToken = 0;
+    private int panikToken = 0;
 
     void Start()
     {
@@ -97,7 +95,6 @@ public class PatrolSlimeAI : MonoBehaviour
     private void OnCollisionEnter2D(Collision2D temas)
     {
         if (mevcutDurum == PatrolState.Olu) return;
-
         if (temas.gameObject.CompareTag("Player"))
         {
             PlayerHealth oyuncuCan = temas.gameObject.GetComponent<PlayerHealth>();
@@ -108,7 +105,6 @@ public class PatrolSlimeAI : MonoBehaviour
     private void OnCollisionStay2D(Collision2D temas)
     {
         if (mevcutDurum == PatrolState.Olu) return;
-
         if (temas.gameObject.CompareTag("Player"))
         {
             PlayerHealth oyuncuCan = temas.gameObject.GetComponent<PlayerHealth>();
@@ -120,10 +116,6 @@ public class PatrolSlimeAI : MonoBehaviour
     {
         if (mevcutDurum == PatrolState.Olu) return;
         mevcutDurum = yeniDurum;
-
-        if (kenarRutini != null) { StopCoroutine(kenarRutini); kenarRutini = null; }
-        if (ziplamaRutini != null) { StopCoroutine(ziplamaRutini); ziplamaRutini = null; }
-        if (panikRutini != null) { StopCoroutine(panikRutini); panikRutini = null; }
 
         kenardaBekliyor = false;
         ziplamayaHazirlaniyor = false;
@@ -142,7 +134,6 @@ public class PatrolSlimeAI : MonoBehaviour
 
                 if (unlemObjesi != null) unlemObjesi.SetActive(true);
                 if (unlemAnimator != null) unlemAnimator.Play("unlem_suphe", -1, 0f);
-
                 if (supheBariObjesi != null) supheBariObjesi.SetActive(true);
                 break;
 
@@ -151,19 +142,19 @@ public class PatrolSlimeAI : MonoBehaviour
                 if (unlemObjesi != null) unlemObjesi.SetActive(true);
                 if (unlemAnimator != null) unlemAnimator.Play("unlem_loop", -1, 0f);
 
-                // YENİ DÜZELTME: Alarm çalar çalmaz beklemeden anında ilk sinyali ver!
                 guncelAlarmMenzili = baslangicAlarmMenzili;
                 AlarmiDalgasiYarat();
-
                 sonAlarmGenislemeZamani = Time.time;
-                panikRutini = StartCoroutine(PanikZiplamasiRoutine());
+
+                panikToken++;
+                PanikZiplamasiBaslat(panikToken);
                 break;
         }
     }
 
     void Update()
     {
-        if (mevcutDurum == PatrolState.Olu) return;
+        if (mevcutDurum == PatrolState.Olu || kolajdir == null || algilayiciNokta == null) return;
 
         Vector2 merkez = kolajdir.bounds.center;
         float yukseklik = kolajdir.bounds.extents.y;
@@ -173,17 +164,22 @@ public class PatrolSlimeAI : MonoBehaviour
         if (zemindeMi && Mathf.Abs(rb.linearVelocity.y) < 0.1f)
             rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
 
+        // ==========================================
+        // DÜZELTİLMİŞ VE KESİNLEŞTİRİLMİŞ GÖRÜŞ RADARI
+        // ==========================================
         bool oyuncuyuGoruyor = false;
         if (oyuncuHedef != null)
         {
-            Vector2 bakisYonu = sagaMiBakiyor ? Vector2.right : Vector2.left;
-            float mesafe = Vector2.Distance(transform.position, oyuncuHedef.position);
-            bool dogruYon = (sagaMiBakiyor == (oyuncuHedef.position.x > transform.position.x));
+            Vector3 hedefMerkez = oyuncuHedef.position + Vector3.up * 0.5f;
+            float mesafe = Vector2.Distance(merkez, hedefMerkez);
+            bool dogruYon = (sagaMiBakiyor == (hedefMerkez.x > merkez.x));
 
             if (mesafe <= gorusMesafesi && dogruYon)
             {
-                Vector2 yon = (oyuncuHedef.position - algilayiciNokta.position).normalized;
-                if (Physics2D.Raycast(algilayiciNokta.position, yon, mesafe, zeminKatmani).collider == null)
+                Vector2 yon = (hedefMerkez - (Vector3)merkez).normalized;
+                RaycastHit2D duvarEngel = Physics2D.Raycast(merkez, yon, mesafe, zeminKatmani);
+
+                if (duvarEngel.collider == null)
                 {
                     oyuncuyuGoruyor = true;
                 }
@@ -230,7 +226,7 @@ public class PatrolSlimeAI : MonoBehaviour
 
             if (zemindeMi && Time.time >= sonZiplamaZamani + devriyeBeklemeSuresi)
             {
-                ziplamaRutini = StartCoroutine(NormalZiplamaRoutine());
+                NormalZiplama();
             }
         }
         else if (mevcutDurum == PatrolState.Alarm)
@@ -264,26 +260,28 @@ public class PatrolSlimeAI : MonoBehaviour
         }
     }
 
-    private IEnumerator PanikZiplamasiRoutine()
+    private async void PanikZiplamasiBaslat(int suAnkiPanikToken)
     {
         while (mevcutDurum == PatrolState.Alarm)
         {
+            if (!this || !gameObject.activeInHierarchy || panikToken != suAnkiPanikToken) return;
+
             if (anaAnimator != null) anaAnimator.Play("slime_panik", -1, 0f);
 
             float rastgeleYon = Random.value > 0.5f ? 1f : -1f;
             rb.linearVelocity = new Vector2(rastgeleYon * 1.5f, 6f);
 
-            yield return new WaitForSeconds(0.4f);
-            if (this == null) yield break;
+            await Task.Delay(400);
+            if (!this || !gameObject.activeInHierarchy || panikToken != suAnkiPanikToken) return;
 
             rb.linearVelocity = Vector2.zero;
 
-            yield return new WaitForSeconds(0.3f);
-            if (this == null) yield break;
+            await Task.Delay(300);
+            if (!this || !gameObject.activeInHierarchy || panikToken != suAnkiPanikToken) return;
         }
     }
 
-    private IEnumerator NormalZiplamaRoutine()
+    private async void NormalZiplama()
     {
         ziplamayaHazirlaniyor = true;
 
@@ -294,14 +292,18 @@ public class PatrolSlimeAI : MonoBehaviour
         if (duvar.collider != null || ucurum.collider == null)
         {
             ziplamayaHazirlaniyor = false;
-            kenarRutini = StartCoroutine(KenardaDusunVeDonRoutine());
-            yield break;
+            KenardaDusunVeDon();
+            return;
         }
 
         if (anaAnimator != null) anaAnimator.Play("slime_hareket", -1, 0f);
 
-        yield return new WaitForSeconds(0.4f);
-        if (this == null) yield break;
+        await Task.Delay(400);
+        if (!this || !gameObject.activeInHierarchy || mevcutDurum != PatrolState.Devriye)
+        {
+            ziplamayaHazirlaniyor = false;
+            return;
+        }
 
         float yonCarpani = sagaMiBakiyor ? 1f : -1f;
         rb.linearVelocity = new Vector2(yonCarpani * devriyeZiplamaX, devriyeZiplamaY);
@@ -309,7 +311,7 @@ public class PatrolSlimeAI : MonoBehaviour
         ziplamayaHazirlaniyor = false;
     }
 
-    private IEnumerator KenardaDusunVeDonRoutine()
+    private async void KenardaDusunVeDon()
     {
         kenardaBekliyor = true;
         rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
@@ -321,8 +323,8 @@ public class PatrolSlimeAI : MonoBehaviour
             anaAnimator.speed = 0f;
         }
 
-        yield return new WaitForSeconds(kenarBeklemeSuresi);
-        if (this == null) yield break;
+        await Task.Delay(Mathf.RoundToInt(kenarBeklemeSuresi * 1000));
+        if (!this || !gameObject.activeInHierarchy || mevcutDurum != PatrolState.Devriye) return;
 
         YonCevir();
 
@@ -345,12 +347,11 @@ public class PatrolSlimeAI : MonoBehaviour
 
         mevcutCan -= hasarMiktari;
         CanBariGorseliGuncelle();
-
-        StartCoroutine(CanBariSarsintiRoutine());
+        CanBariSarsinti();
 
         if (mevcutCan <= 0)
         {
-            StartCoroutine(OlumRoutine(saldirganXPos));
+            OlumUygula(saldirganXPos);
         }
     }
 
@@ -365,32 +366,36 @@ public class PatrolSlimeAI : MonoBehaviour
         }
     }
 
-    private IEnumerator CanBariSarsintiRoutine()
+    private async void CanBariSarsinti()
     {
-        if (canBariTransform == null) yield break;
+        if (canBariTransform == null) return;
         float gecenSure = 0f;
         while (gecenSure < 0.15f)
         {
-            if (this == null || canBariTransform == null) yield break;
+            if (!this || !gameObject.activeInHierarchy || canBariTransform == null) return;
             canBariSarsintiOffset = (Vector3)(Random.insideUnitCircle * 0.15f);
             gecenSure += Time.deltaTime;
-            yield return null;
+            await Task.Yield();
         }
         canBariSarsintiOffset = Vector3.zero;
     }
 
-    private IEnumerator OlumRoutine(float saldirganXPos)
+    private async void OlumUygula(float saldirganXPos)
     {
         DurumDegistir(PatrolState.Olu);
+
         if (kolajdir != null) kolajdir.enabled = false;
+
+        hasarToken++;
+        int suAnkiToken = hasarToken;
 
         if (gövdeSpriteRenderer != null) gövdeSpriteRenderer.color = Color.black;
         rb.constraints = RigidbodyConstraints2D.FreezeAll;
         rb.linearVelocity = Vector2.zero;
         rb.gravityScale = 0f;
 
-        yield return new WaitForSeconds(0.08f);
-        if (this == null) yield break;
+        await Task.Delay(80);
+        if (!this || !gameObject.activeInHierarchy || hasarToken != suAnkiToken) return;
 
         if (gövdeSpriteRenderer != null) gövdeSpriteRenderer.color = Color.white;
         rb.gravityScale = 3f;
@@ -404,8 +409,8 @@ public class PatrolSlimeAI : MonoBehaviour
         if (supheBariObjesi != null) supheBariObjesi.SetActive(false);
         if (canBariTransform != null) canBariTransform.gameObject.SetActive(false);
 
-        yield return new WaitForSeconds(1.2f);
-        if (this == null) yield break;
+        await Task.Delay(1200);
+        if (!this || !gameObject.activeInHierarchy) return;
 
         if (patlamaEfekti != null) Instantiate(patlamaEfekti, transform.position, Quaternion.identity);
         Destroy(gameObject);
