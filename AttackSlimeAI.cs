@@ -481,6 +481,8 @@ public class AttackSlimeAI : MonoBehaviour, IDamageable
     {
         if (mevcutDurum == SlimeState.Olu) return;
 
+        if (AudioManager.instance != null) AudioManager.instance.SesCal(AudioManager.instance.slimeHasar);
+
         mevcutCan = mevcutCan - 1;
         CanBariGorseliGuncelle();
         CanBariSarsinti();
@@ -556,6 +558,7 @@ public class AttackSlimeAI : MonoBehaviour, IDamageable
 
     private async void OlumUygula()
     {
+        if (AudioManager.instance != null) AudioManager.instance.SesCal(AudioManager.instance.slimeOlum);
         DurumDegistir(SlimeState.Olu);
         rb.linearVelocity = Vector2.zero;
         rb.gravityScale = 3f;

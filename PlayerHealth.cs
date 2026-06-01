@@ -43,6 +43,8 @@ public class PlayerHealth : MonoBehaviour
     {
         if (!hasarAlabilirMi || dashDokunulmazligi) return;
 
+        if (AudioManager.instance != null) AudioManager.instance.OyuncuHasarSesiCal();
+
         mevcutCan -= hasarMiktari;
         if (UIManager.instance != null) UIManager.instance.CanGuncelle(mevcutCan);
 
@@ -58,6 +60,7 @@ public class PlayerHealth : MonoBehaviour
 
     private IEnumerator OlumUygula()
     {
+        if (AudioManager.instance != null) AudioManager.instance.SesCal(AudioManager.instance.playerOlum);
         hasarAlabilirMi = false;
         if (hareketKodu != null) hareketKodu.enabled = false;
 

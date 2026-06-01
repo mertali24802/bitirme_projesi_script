@@ -141,6 +141,7 @@ public class PlayerMovement : MonoBehaviour
             }
             else if (ciftZiplamaYapabilirMi) 
             {
+                if (AudioManager.instance != null) AudioManager.instance.SesCal(AudioManager.instance.ciftZiplama);
                 rb.linearVelocity = new Vector2(rb.linearVelocity.x, ziplamaKuvveti);
                 ciftZiplamaYapabilirMi = false;
 
@@ -200,6 +201,7 @@ public class PlayerMovement : MonoBehaviour
 
     private IEnumerator DashUygula()
     {
+        if (AudioManager.instance != null) AudioManager.instance.SesCal(AudioManager.instance.dash);
         if (UIManager.instance != null) UIManager.instance.AnimasyonDashTetikle();
         dashAtiyorMu = true;
 
@@ -251,6 +253,8 @@ public class PlayerMovement : MonoBehaviour
     public float hazirlikSuresi = 0.15f;
     private async void ZiplamaHazirlikUygula()
     {
+        if (AudioManager.instance != null) AudioManager.instance.SesCal(AudioManager.instance.ziplama);
+
         ziplamayaHazirlaniyor = true;
 
         if (anim != null) anim.Play("jump_anticipation");

@@ -63,6 +63,7 @@ public class PlayerCombat : MonoBehaviour
 
     void Saldir()
     {
+        if (AudioManager.instance != null) AudioManager.instance.SesCal(AudioManager.instance.playerSaldiri);
         if (anim != null) anim.SetTrigger("Saldir");
         StartCoroutine(KilicIziniGoster());
     }
@@ -79,6 +80,7 @@ public class PlayerCombat : MonoBehaviour
 
     private IEnumerator ZincirlemeSaldiriUygula()
     {
+        if (AudioManager.instance != null) AudioManager.instance.SesCal(AudioManager.instance.elektrik);
         Collider2D ilkDusman = EnYakinDusmaniBul(transform.position, zincirAramaMenzili, new List<Collider2D>());
         if (ilkDusman == null) yield break;
 

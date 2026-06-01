@@ -154,6 +154,7 @@ public class PatrolEnemyAI : MonoBehaviour, IDamageable
                 break;
 
             case PatrolState.Alarm:
+                if (AudioManager.instance != null) AudioManager.instance.AlarmCal(true); // Alarmı Başlat
                 if (supheBariObjesi != null) supheBariObjesi.SetActive(false);
                 if (unlemObjesi != null) unlemObjesi.SetActive(true);
                 if (unlemAnimator != null) unlemAnimator.Play("unlem_loop", -1, 0f);
@@ -381,6 +382,8 @@ public class PatrolEnemyAI : MonoBehaviour, IDamageable
     {
         if (mevcutDurum == PatrolState.Olu) return;
 
+        if (AudioManager.instance != null) AudioManager.instance.SesCal(AudioManager.instance.slimeHasar);
+
         mevcutCan -= hasarMiktari;
         CanBariGorseliGuncelle();
         CanBariSarsinti();
@@ -418,6 +421,12 @@ public class PatrolEnemyAI : MonoBehaviour, IDamageable
 
     private async void OlumUygula(float saldirganXPos)
     {
+
+        if (AudioManager.instance != null)
+        {
+            AudioManager.instance.AlarmCal(false); // Düşman ölünce alarm sussun
+            AudioManager.instance.SesCal(AudioManager.instance.slimeOlum);
+        }
         DurumDegistir(PatrolState.Olu);
 
         if (kolajdir != null)

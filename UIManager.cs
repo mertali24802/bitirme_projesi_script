@@ -95,13 +95,19 @@ public class UIManager : MonoBehaviour
             else dashKaranlik.gameObject.SetActive(false);
         }
 
+        bool oyunDurduMu = GameManager.instance != null && GameManager.instance.isPaused;
+
         bool canGorunurMu = (oyunBaslangicZamanlayici > 0f) || (hareketsizSure >= 1f) || (canHasarZamanlayici > 0f);
-        float hedefCanAlpha = canGorunurMu ? 1f : saydamlikMiktari;
+
+        float hedefCanAlpha = oyunDurduMu ? 0f : (canGorunurMu ? 1f : saydamlikMiktari);
+
         if (canBariCanvasGroup != null)
             canBariCanvasGroup.alpha = Mathf.Lerp(canBariCanvasGroup.alpha, hedefCanAlpha, Time.unscaledDeltaTime * gecisHizi);
 
         bool skillGorunurMu = (oyunBaslangicZamanlayici > 0f) || (hareketsizSure >= 1f) || (skillBasildiZamanlayici > 0f);
-        float hedefSkillAlpha = skillGorunurMu ? 1f : saydamlikMiktari;
+
+        float hedefSkillAlpha = oyunDurduMu ? 0f : (skillGorunurMu ? 1f : saydamlikMiktari);
+
         if (skillerCanvasGroup != null)
             skillerCanvasGroup.alpha = Mathf.Lerp(skillerCanvasGroup.alpha, hedefSkillAlpha, Time.unscaledDeltaTime * gecisHizi);
     }
