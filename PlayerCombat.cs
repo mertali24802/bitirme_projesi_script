@@ -65,31 +65,6 @@ public class PlayerCombat : MonoBehaviour
     {
         if (anim != null) anim.SetTrigger("Saldir");
         StartCoroutine(KilicIziniGoster());
-
-        int vurulanSayisi = Physics2D.OverlapCircle(saldiriNoktasi.position, saldiriMenzili, dusmanFiltresi, vurulanDusmanlarHafizasi);
-        if (vurulanSayisi > 0)
-        {
-            sarsintiKaynagi.GenerateImpulseWithForce(1f);
-            TimeManager.instance.HitstopTetikle(0.1f);
-        }
-
-        for (int i = 0; i < vurulanSayisi; i++)
-        {
-            Collider2D dusman = vurulanDusmanlarHafizasi[i];
-            if (dusman == null) continue;
-
-            // 1. Eski Düşman Kontrolü
-            Enemy eskiDusman = dusman.GetComponent<Enemy>();
-            if (eskiDusman != null) eskiDusman.HasarAl(saldiriHasari, transform.position.x);
-
-            // 2. Kırmızı Slime Kontrolü
-            AttackSlimeAI kirmiziSlime = dusman.GetComponent<AttackSlimeAI>();
-            if (kirmiziSlime != null) kirmiziSlime.HasarAl(1, transform.position.x);
-
-            // 3. YENİ: YEŞİL GÖZCÜ SLIME KONTROLÜ
-            PatrolSlimeAI yesilSlime = dusman.GetComponent<PatrolSlimeAI>();
-            if (yesilSlime != null) yesilSlime.HasarAl(1, transform.position.x);
-        }
     }
 
     private IEnumerator KilicIziniGoster()
@@ -133,25 +108,10 @@ public class PlayerCombat : MonoBehaviour
             sarsintiKaynagi.GenerateImpulse();
             TimeManager.instance.HitstopTetikle(0.1f);
 
-            // --- YENİ EKLENEN GÜVENLİ HASAR SİSTEMİ ---
-            Enemy eskiDusman = hedefDusman.GetComponent<Enemy>();
-            if (eskiDusman != null)
-            {
-                eskiDusman.HasarAl(saldiriHasari, transform.position.x);
-            }
-            else
-            {
-                AttackSlimeAI yeniSlime = hedefDusman.GetComponent<AttackSlimeAI>();
-                if (yeniSlime != null)
-                {
-                    yeniSlime.HasarAl(1, transform.position.x);
-                }
-                else
-                {
-                    PatrolSlimeAI yesilSlime = hedefDusman.GetComponent<PatrolSlimeAI>();
-                    if (yesilSlime != null) yesilSlime.HasarAl(1, transform.position.x);
-                }
-            }
+            // --- DEĞİŞEN KISIM BURASI ---
+            // Burada kime vurduğunun bir önemi yok, objede IDamageable varsa hasarı yer.
+            IDamageable hasarAlabilirObje = hedefDusman.GetComponent<IDamageable>();
+            hasarAlabilirObje?.HasarAl(saldiriHasari, transform.position.x);
             // ------------------------------------------
 
             yapilanVurusSayisi++;

@@ -63,6 +63,11 @@ public class PlayerHealth : MonoBehaviour
         hasarAlabilirMi = false;
         hareketKodu.enabled = false;
 
+        // --- YENİ: FİZİKSEL ÇARPIŞMAYI GEÇİCİ KAPAT ---
+        int playerLayer = LayerMask.NameToLayer("Player");
+        int enemyLayer = LayerMask.NameToLayer("Enemy");
+        Physics2D.IgnoreLayerCollision(playerLayer, enemyLayer, true);
+
         float tepmeYonu = transform.position.x < dusmanXPos ? -1f : 1f;
 
         rb.linearVelocity = Vector2.zero;
@@ -75,7 +80,12 @@ public class PlayerHealth : MonoBehaviour
         if (spriteRenderer != null) spriteRenderer.color = orijinalRenk;
         hareketKodu.enabled = true;
 
+        // Sarsıntı süresi bitti, şimdi kalan yenilmezlik süresini bekle
         yield return new WaitForSeconds(yenilmezlikSuresi - sarsintiSuresi);
+
         hasarAlabilirMi = true;
+
+        // --- YENİ: FİZİKSEL ÇARPIŞMAYI GERİ AÇ ---
+        Physics2D.IgnoreLayerCollision(playerLayer, enemyLayer, false);
     }
 }

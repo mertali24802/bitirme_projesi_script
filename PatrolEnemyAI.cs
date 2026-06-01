@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 public enum PatrolState { Devriye, Suphe, Alarm, Olu }
 
-public class PatrolSlimeAI : MonoBehaviour
+public class PatrolEnemyAI : MonoBehaviour, IDamageable
 {
     [Header("Temel Ayarlar ve Can")]
     public int maxCan = 1;
@@ -25,8 +25,11 @@ public class PatrolSlimeAI : MonoBehaviour
     public float baslangicAlarmMenzili = 10f;
     public float alarmGenislemeMiktari = 10f;
     public float alarmGenislemeSuresi = 3f;
+    [Tooltip("Alarmın kaç kez büyüyeceğini belirler (Örn: 3)")]
+    public int maxAlarmBuyumeSayisi = 3;
     private float guncelAlarmMenzili;
     private float sonAlarmGenislemeZamani;
+    private int mevcutBuyumeSayisi = 0;
 
     [Header("Sensörler")]
     public Transform algilayiciNokta;
@@ -112,7 +115,7 @@ public class PatrolSlimeAI : MonoBehaviour
         }
     }
 
-    private void DurumDegistir(PatrolState yeniDurum)
+    public void DurumDegistir(PatrolState yeniDurum)
     {
         if (mevcutDurum == PatrolState.Olu) return;
         mevcutDurum = yeniDurum;
@@ -142,7 +145,10 @@ public class PatrolSlimeAI : MonoBehaviour
                 if (unlemObjesi != null) unlemObjesi.SetActive(true);
                 if (unlemAnimator != null) unlemAnimator.Play("unlem_loop", -1, 0f);
 
+                // Alarm sıfırlanır ve limit sayacı baştan başlar
                 guncelAlarmMenzili = baslangicAlarmMenzili;
+                mevcutBuyumeSayisi = 0;
+
                 AlarmiDalgasiYarat();
                 sonAlarmGenislemeZamani = Time.time;
 
@@ -164,9 +170,6 @@ public class PatrolSlimeAI : MonoBehaviour
         if (zemindeMi && Mathf.Abs(rb.linearVelocity.y) < 0.1f)
             rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
 
-        // ==========================================
-        // DÜZELTİLMİŞ VE KESİNLEŞTİRİLMİŞ GÖRÜŞ RADARI
-        // ==========================================
         bool oyuncuyuGoruyor = false;
         if (oyuncuHedef != null)
         {
@@ -231,11 +234,16 @@ public class PatrolSlimeAI : MonoBehaviour
         }
         else if (mevcutDurum == PatrolState.Alarm)
         {
-            if (Time.time >= sonAlarmGenislemeZamani + alarmGenislemeSuresi)
+            // YENİ: Sadece limite ulaşana kadar alarm dalgası genişler
+            if (mevcutBuyumeSayisi < maxAlarmBuyumeSayisi)
             {
-                guncelAlarmMenzili += alarmGenislemeMiktari;
-                AlarmiDalgasiYarat();
-                sonAlarmGenislemeZamani = Time.time;
+                if (Time.time >= sonAlarmGenislemeZamani + alarmGenislemeSuresi)
+                {
+                    guncelAlarmMenzili += alarmGenislemeMiktari;
+                    mevcutBuyumeSayisi++; // Büyüme sayacını artır
+                    AlarmiDalgasiYarat();
+                    sonAlarmGenislemeZamani = Time.time;
+                }
             }
         }
     }
@@ -255,8 +263,21 @@ public class PatrolSlimeAI : MonoBehaviour
         Collider2D[] yakindakiDusmanlar = Physics2D.OverlapCircleAll(transform.position, guncelAlarmMenzili);
         foreach (Collider2D hit in yakindakiDusmanlar)
         {
+            // Kırmızı slime'ları uyandır
             AttackSlimeAI saldirgan = hit.GetComponent<AttackSlimeAI>();
             if (saldirgan != null) saldirgan.AlarmiDuy(this);
+
+            // ZİNCİRLEME ALARM: Diğer devriye slime'ları da uyar
+            PatrolEnemyAI baskaGozcu = hit.GetComponent<PatrolEnemyAI>();
+            if (baskaGozcu != null && baskaGozcu != this)
+            {
+                // Zaten ölü veya alarm durumundaysa karışma
+                if (baskaGozcu.mevcutDurum != PatrolState.Olu && baskaGozcu.mevcutDurum != PatrolState.Alarm)
+                {
+                    // Diğer gözcü şüphe barını beklemeden direkt Alarm'a (kırmızıya) geçer ve kendi dalgasını yaymaya başlar
+                    baskaGozcu.DurumDegistir(PatrolState.Alarm);
+                }
+            }
         }
     }
 
@@ -271,12 +292,12 @@ public class PatrolSlimeAI : MonoBehaviour
             float rastgeleYon = Random.value > 0.5f ? 1f : -1f;
             rb.linearVelocity = new Vector2(rastgeleYon * 1.5f, 6f);
 
-            await Task.Delay(400);
+            await Awaitable.WaitForSecondsAsync(0.4f);
             if (!this || !gameObject.activeInHierarchy || panikToken != suAnkiPanikToken) return;
 
             rb.linearVelocity = Vector2.zero;
 
-            await Task.Delay(300);
+            await Awaitable.WaitForSecondsAsync(0.3f);
             if (!this || !gameObject.activeInHierarchy || panikToken != suAnkiPanikToken) return;
         }
     }
@@ -298,7 +319,7 @@ public class PatrolSlimeAI : MonoBehaviour
 
         if (anaAnimator != null) anaAnimator.Play("slime_hareket", -1, 0f);
 
-        await Task.Delay(400);
+        await Awaitable.WaitForSecondsAsync(0.4f);
         if (!this || !gameObject.activeInHierarchy || mevcutDurum != PatrolState.Devriye)
         {
             ziplamayaHazirlaniyor = false;
@@ -323,7 +344,7 @@ public class PatrolSlimeAI : MonoBehaviour
             anaAnimator.speed = 0f;
         }
 
-        await Task.Delay(Mathf.RoundToInt(kenarBeklemeSuresi * 1000));
+        await Awaitable.WaitForSecondsAsync(kenarBeklemeSuresi);
         if (!this || !gameObject.activeInHierarchy || mevcutDurum != PatrolState.Devriye) return;
 
         YonCevir();
@@ -394,7 +415,7 @@ public class PatrolSlimeAI : MonoBehaviour
         rb.linearVelocity = Vector2.zero;
         rb.gravityScale = 0f;
 
-        await Task.Delay(80);
+        await Awaitable.WaitForSecondsAsync(0.08f);
         if (!this || !gameObject.activeInHierarchy || hasarToken != suAnkiToken) return;
 
         if (gövdeSpriteRenderer != null) gövdeSpriteRenderer.color = Color.white;
@@ -409,7 +430,7 @@ public class PatrolSlimeAI : MonoBehaviour
         if (supheBariObjesi != null) supheBariObjesi.SetActive(false);
         if (canBariTransform != null) canBariTransform.gameObject.SetActive(false);
 
-        await Task.Delay(1200);
+        await Awaitable.WaitForSecondsAsync(1.2f);
         if (!this || !gameObject.activeInHierarchy) return;
 
         if (patlamaEfekti != null) Instantiate(patlamaEfekti, transform.position, Quaternion.identity);

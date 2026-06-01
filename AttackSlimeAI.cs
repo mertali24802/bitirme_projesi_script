@@ -1,9 +1,10 @@
 using UnityEngine;
 using System.Threading.Tasks;
+using UnityEngine.UIElements;
 
 public enum SlimeState { Devriye, Agresif, Uyari, Saldiri, Sersem, Olu }
 
-public class AttackSlimeAI : MonoBehaviour
+public class AttackSlimeAI : MonoBehaviour, IDamageable
 {
     [Header("Temel Ayarlar")]
     public int maxCan = 3;
@@ -34,6 +35,7 @@ public class AttackSlimeAI : MonoBehaviour
     public float saldiriVurusGecikmesi = 0.25f;
     public float saldiriAtilmaHizi = 18f;
     public float kacisToleransiX = 2.5f;
+    public float dikeyVurusToleransiY = 2.5f;
 
     [Header("Sensörler")]
     public Transform algilayiciNokta;
@@ -63,7 +65,7 @@ public class AttackSlimeAI : MonoBehaviour
     private bool ziplamayaHazirlaniyor = false;
 
     [HideInInspector] public bool alarmIleUyandirildi = false;
-    private PatrolSlimeAI aktifAlarmKaynagi = null;
+    private PatrolEnemyAI aktifAlarmKaynagi = null;
 
     private float sonZiplamaZamani = 0f;
     private float sonSaldiriZamani = 0f;
@@ -83,9 +85,7 @@ public class AttackSlimeAI : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         kolajdir = GetComponent<Collider2D>();
 
-        // FİZİKSEL FELCİ ÖNLEYEN AYAR (100.000 çok fazlaydı, 40 kilo karakterin onu kolay itmesini engeller ama zıplamasını bozmaz)
         rb.mass = 40f;
-
         mevcutCan = maxCan;
         orijinalBoyut = transform.localScale;
         orijinalGorusMesafesi = onGorusMesafesi;
@@ -118,7 +118,7 @@ public class AttackSlimeAI : MonoBehaviour
         }
     }
 
-    public void AlarmiDuy(PatrolSlimeAI gozcu)
+    public void AlarmiDuy(PatrolEnemyAI gozcu)
     {
         if (mevcutDurum == SlimeState.Olu || mevcutDurum == SlimeState.Sersem) return;
 
@@ -134,9 +134,13 @@ public class AttackSlimeAI : MonoBehaviour
     private void DurumDegistir(SlimeState yeniDurum)
     {
         if (mevcutDurum == SlimeState.Olu) return;
+        if (mevcutDurum == yeniDurum) return;
+
         mevcutDurum = yeniDurum;
 
         ziplamayaHazirlaniyor = false;
+
+        if (anaAnimator != null) anaAnimator.speed = 1f;
 
         switch (yeniDurum)
         {
@@ -161,6 +165,12 @@ public class AttackSlimeAI : MonoBehaviour
                 rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
                 uyariBaslangicZamani = Time.time;
                 if (unlemAnimator != null) unlemAnimator.Play("unlem_warning", -1, 0f);
+
+                if (anaAnimator != null)
+                {
+                    anaAnimator.SetBool("KizginMi", false);
+                    anaAnimator.Play("slime_hareket", -1, 0f);
+                }
                 break;
 
             case SlimeState.Saldiri:
@@ -170,24 +180,29 @@ public class AttackSlimeAI : MonoBehaviour
 
     void Update()
     {
-        if (mevcutDurum == SlimeState.Olu || mevcutDurum == SlimeState.Sersem || mevcutDurum == SlimeState.Saldiri || ziplamayaHazirlaniyor) return;
         if (kolajdir == null || algilayiciNokta == null) return;
 
-        // ==========================================
-        // DONDURMAYI BİTİREN GÜVENLİ ALARM KONTROLÜ
-        // '.Equals()' yerine Unity'nin kendi silinme kontrolü (!) kullanıldı.
-        // ==========================================
+        // Alarmın kesilip kesilmediğini kontrol et
         if (alarmIleUyandirildi)
         {
             if (aktifAlarmKaynagi == null || !aktifAlarmKaynagi || !aktifAlarmKaynagi.gameObject.activeInHierarchy || aktifAlarmKaynagi.mevcutDurum != PatrolState.Alarm)
             {
                 alarmIleUyandirildi = false;
                 aktifAlarmKaynagi = null;
+
+                // YENİ EKLENEN KISIM: İSTEDİĞİN MEKANİK
+                // Patrol öldüğü veya sustuğu an, alarmdan beslenen slime ANINDA şüpheye düşer ve donma döngüsü kırılır.
+                if (mevcutDurum == SlimeState.Agresif || mevcutDurum == SlimeState.Saldiri)
+                {
+                    DurumDegistir(SlimeState.Uyari);
+                }
             }
         }
 
+        if (mevcutDurum == SlimeState.Olu || mevcutDurum == SlimeState.Sersem || mevcutDurum == SlimeState.Saldiri || ziplamayaHazirlaniyor) return;
+
         Vector2 bakisYonu = sagaMiBakiyor ? Vector2.right : Vector2.left;
-        Vector2 merkez = kolajdir.bounds.center;
+        Vector2 merkez = kolajdir.bounds.center; // Merkeze alındı (Yere çarpma fix)
         float yukseklik = kolajdir.bounds.extents.y;
 
         RaycastHit2D zeminKontrol = Physics2D.Raycast(merkez, Vector2.down, yukseklik + 0.1f, zeminKatmani);
@@ -200,25 +215,32 @@ public class AttackSlimeAI : MonoBehaviour
 
         if (oyuncuHedef != null)
         {
-            float oyuncuMesafe = Vector2.Distance(transform.position, oyuncuHedef.position);
-            bool oyuncuSagdaMi = (oyuncuHedef.position.x > transform.position.x);
+            Vector3 hedefMerkez = oyuncuHedef.position + Vector3.up * 0.5f;
+            float oyuncuMesafe = Vector2.Distance(merkez, hedefMerkez);
+            bool oyuncuSagdaMi = (hedefMerkez.x > merkez.x);
             bool bakisYonuDogruMu = (sagaMiBakiyor == oyuncuSagdaMi);
 
-            float aktifMenzil = (mevcutDurum == SlimeState.Uyari) ? onGorusMesafesi * genisletilmisGorusCarpani : onGorusMesafesi;
+            float aktifMenzil = (mevcutDurum == SlimeState.Uyari || mevcutDurum == SlimeState.Agresif) ? onGorusMesafesi * genisletilmisGorusCarpani : onGorusMesafesi;
             float aktifArkaGorus = (mevcutDurum == SlimeState.Agresif || mevcutDurum == SlimeState.Uyari) ? 6f : arkaGorusMesafesi;
 
-            Vector2 oyuncuyaDogruYön = (oyuncuHedef.position - algilayiciNokta.position).normalized;
-            RaycastHit2D duvarEngel = Physics2D.Raycast(algilayiciNokta.position, oyuncuyaDogruYön, oyuncuMesafe, zeminKatmani);
-
-            if (duvarEngel.collider == null || alarmIleUyandirildi)
+            // KUSURSUZ GÖRÜŞ VE WALLHACK MOTORU
+            if (alarmIleUyandirildi)
             {
-                if (oyuncuMesafe <= aktifArkaGorus)
+                // Eğer alarm çalıyorsa, mesafe/duvar umursamaz direkt görür (Wallhack)
+                oyuncuyuGoruyor = true;
+            }
+            else
+            {
+                // Alarm yoksa düzgünce raycast at, ancak yere çarpmaması için merkezden at
+                Vector2 oyuncuyaDogruYön = (hedefMerkez - (Vector3)merkez).normalized;
+                RaycastHit2D duvarEngel = Physics2D.Raycast(merkez, oyuncuyaDogruYön, oyuncuMesafe, zeminKatmani);
+
+                if (duvarEngel.collider == null)
                 {
-                    oyuncuyuGoruyor = true;
-                }
-                else if (oyuncuMesafe <= aktifMenzil && bakisYonuDogruMu)
-                {
-                    oyuncuyuGoruyor = true;
+                    if (oyuncuMesafe <= aktifArkaGorus)
+                        oyuncuyuGoruyor = true;
+                    else if (oyuncuMesafe <= aktifMenzil && bakisYonuDogruMu)
+                        oyuncuyuGoruyor = true;
                 }
             }
 
@@ -241,15 +263,19 @@ public class AttackSlimeAI : MonoBehaviour
                 break;
 
             case SlimeState.Agresif:
+                // Kaynak kesildiğinde (veya saklanınca) 0.1 saniyelik toleransla direkt şüpheye düşer (Uyarı)
                 if (!oyuncuyuGoruyor && Time.time > sonOyuncuyuGormeZamani + 0.5f)
                 {
                     DurumDegistir(SlimeState.Uyari);
                     return;
                 }
 
-                float hedefeMesafe = Vector2.Distance(transform.position, oyuncuHedef.position);
+                YuzunuOyuncuyaDon();
 
-                if (hedefeMesafe <= saldiriTetiklemeMenzili && zemindeMi)
+                float hedefeMesafe = Vector2.Distance(transform.position, oyuncuHedef.position);
+                float yMesafeUpdate = Mathf.Abs(transform.position.y - oyuncuHedef.position.y);
+
+                if (hedefeMesafe <= saldiriTetiklemeMenzili && yMesafeUpdate <= dikeyVurusToleransiY && zemindeMi)
                 {
                     if (Time.time >= sonSaldiriZamani + saldiriBeklemeSuresi)
                     {
@@ -311,24 +337,25 @@ public class AttackSlimeAI : MonoBehaviour
         YuzunuOyuncuyaDon();
 
         if (anaAnimator != null) anaAnimator.SetTrigger("Saldiri");
-        await Task.Delay(Mathf.RoundToInt(saldiriVurusGecikmesi * 1000));
+        await Awaitable.WaitForSecondsAsync(saldiriVurusGecikmesi);
 
         if (!this || !gameObject.activeInHierarchy) return;
 
         rb.constraints = RigidbodyConstraints2D.FreezeRotation;
 
-        if (mevcutDurum == SlimeState.Olu || mevcutDurum == SlimeState.Sersem) return;
+        if (mevcutDurum == SlimeState.Olu || mevcutDurum == SlimeState.Sersem || mevcutDurum == SlimeState.Uyari) return;
 
         float vurmaYonu = sagaMiBakiyor ? 1f : -1f;
         rb.linearVelocity = new Vector2(vurmaYonu * saldiriAtilmaHizi, 3f);
 
-        await Task.Delay(200);
+        await Awaitable.WaitForSecondsAsync(0.2f);
 
         if (!this || !gameObject.activeInHierarchy) return;
 
-        float oyuncuyaMesafe = Vector2.Distance(transform.position, oyuncuHedef.position);
+        float xMesafe = Mathf.Abs(transform.position.x - oyuncuHedef.position.x);
+        float yMesafe = Mathf.Abs(transform.position.y - oyuncuHedef.position.y);
 
-        if (oyuncuyaMesafe <= kacisToleransiX)
+        if (xMesafe <= kacisToleransiX && yMesafe <= dikeyVurusToleransiY)
         {
             PlayerHealth oyuncuCan = oyuncuHedef.GetComponent<PlayerHealth>();
             if (oyuncuCan != null) oyuncuCan.HasarAl(1, transform.position.x);
@@ -344,7 +371,7 @@ public class AttackSlimeAI : MonoBehaviour
         sonSaldiriZamani = Time.time;
         sonZiplamaZamani = Time.time + 0.5f;
 
-        await Task.Delay(400);
+        await Awaitable.WaitForSecondsAsync(0.4f);
         if (!this || !gameObject.activeInHierarchy) return;
 
         if (mevcutDurum == SlimeState.Saldiri) DurumDegistir(SlimeState.Agresif);
@@ -361,7 +388,7 @@ public class AttackSlimeAI : MonoBehaviour
         }
 
         float hazirlikSuresi = (mevcutDurum == SlimeState.Agresif) ? kizginComelmeSuresi : devriyeComelmeSuresi;
-        await Task.Delay(Mathf.RoundToInt(hazirlikSuresi * 1000));
+        await Awaitable.WaitForSecondsAsync(hazirlikSuresi);
 
         if (!this || !gameObject.activeInHierarchy) return;
 
@@ -449,7 +476,7 @@ public class AttackSlimeAI : MonoBehaviour
         rb.linearVelocity = Vector2.zero;
         rb.gravityScale = 0f;
 
-        await Task.Delay(80);
+        await Awaitable.WaitForSecondsAsync(0.08f);
         if (!this || !gameObject.activeInHierarchy || hasarToken != suAnkiToken) return;
 
         if (gövdeSpriteRenderer != null) gövdeSpriteRenderer.color = Color.white;
@@ -459,7 +486,7 @@ public class AttackSlimeAI : MonoBehaviour
         float yon = transform.position.x < saldirganX ? -1f : 1f;
         rb.linearVelocity = new Vector2(yon * hasarYemeGeriTepmeX, hasarYemeGeriTepmeY);
 
-        await Task.Delay(250);
+        await Awaitable.WaitForSecondsAsync(0.25f);
         if (!this || !gameObject.activeInHierarchy || hasarToken != suAnkiToken) return;
 
         rb.linearVelocity = Vector2.zero;
@@ -477,7 +504,7 @@ public class AttackSlimeAI : MonoBehaviour
         if (unlemObjesi != null) unlemObjesi.SetActive(false);
         if (canBariTransform != null) canBariTransform.gameObject.SetActive(false);
 
-        await Task.Delay(600);
+        await Awaitable.WaitForSecondsAsync(0.6f);
         if (!this || !gameObject.activeInHierarchy) return;
 
         if (patlamaEfekti != null) Instantiate(patlamaEfekti, transform.position, Quaternion.identity);
